@@ -1,0 +1,128 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+ entity part1_control_unit is
+ port(run,resetn: 	in std_logic;
+		counter: 		in std_logic_vector(1 downto 0);
+		IR: 				in std_logic_vector(8 downto 0);
+		mvi:				in std_logic;
+		R0toR7mux, R0toR7reg: out std_logic_vector(2 downto 0);
+		Gout,DINout: 	out std_logic;
+		Addsub,Ain: 	out std_logic;
+		Gin,IRin:		out std_logic;
+		clear: 			out std_logic;
+		done: 			buffer std_logic
+ );
+end part1_control_unit;
+ 
+architecture arch of part1_control_unit is
+type state is (S0,S1,SX,S2,S3,S4,S5,S6);
+signal EA,PE: state;
+signal I: std_logic_vector(2 downto 0);
+signal signalx: std_logic_vector(5 downto 3);
+ begin
+ I <= IR(8 downto 6);
+		
+ -- troca de estados
+ process(resetn,counter, run, mvi) is
+ begin
+	if resetn='0' then 
+		EA<=S0;
+	else
+		EA <= PE;
+	end if;
+ end process;
+ 
+ --proximo estados
+ process(EA,run,I, mvi) is
+	begin
+	case(EA) is
+		when S0 =>
+			if (run='1' and I="000") then
+				PE<=S1;
+			elsif (run='1' and I="001") then
+				PE <= SX;
+			elsif (run='1' and (I="010" or I="011")) then
+				PE<=S3;
+			end if;
+		when S1 =>
+			PE <= S0;
+		when SX =>
+			if mvi='1' then 
+				PE <= SX;
+			else 
+				PE <= S2; 
+			end if;
+		when S2 =>
+			PE <= S0;
+		when S3 =>
+			if I= "010" then
+				PE <= S4;
+			elsif I= "011" then
+				PE <= S5;
+			end if;
+ 		when S4 =>
+			PE <= S6;
+		when S5 =>
+			PE <= S6;
+		when S6 =>
+			PE <=S0;
+ 	end case;
+end process;
+
+-- logica de saida
+process(EA)
+Begin
+			R0toR7reg <= "000";
+			R0toR7mux <= "000";
+			Gout <=    '0';	--mux
+			DINout <=  '0';	   --mux
+			Addsub <=  '0';   --ula
+			Ain  <=    '0';		--carga
+			Gin  <=    '0';		--carga
+			IRin <=    '0';		--carga
+			done <= 	  '0';		--final
+			clear <= '0';
+	case(EA) is
+		when S0 => 
+			Gout <=    '0';		--mux
+			DINout <=  '0';	 	--mux
+			Addsub <=  '0';	 	--ula
+			Ain  <=    '0';		--carga
+			Gin  <=    '0';		--carga
+			IRin <=    '1';		--carga
+			done <=    '1'; 	--final
+			clear <= '1';
+			signalx <= IR(5 downto 3);
+			
+		when S1 =>
+			R0toR7mux <= IR(2 downto 0);
+			R0toR7reg <= IR(5 downto 3);
+			done <= 	  '0';		--final
+
+			
+		when SX =>
+
+		when S2 =>
+			R0toR7reg <= signalx;
+			DINout <=  '1';	   --mux
+
+		when S3 =>
+			R0toR7mux <= IR(5 downto 3);
+			Ain  <=    '1';		--carga
+
+		when S4 =>
+			R0toR7mux <= IR(2 downto 0);
+			Gin  <=    '1';		--carga
+			
+		when S5 =>
+			R0toR7mux <= IR(2 downto 0);
+			Addsub <=  '1';		--ula precisa
+			Gin  <=    '1';		--carga
+
+		when S6 =>
+			R0toR7reg <= IR(5 downto 3);
+			Gout <=    '1';	   --mux
+	end case;
+ end process; 
+end arch;
